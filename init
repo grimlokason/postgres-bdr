@@ -1,0 +1,172 @@
+#!/bin/bash
+
+set -e
+
+if [ -n "$DEBUG_STARTUP" ]; then
+	set -x
+fi
+
+reload() {
+	pg_ctl reload
+}
+
+shutdown() {
+	pg_ctl stop
+}
+
+enable_debug() {
+	set -x
+}
+
+disable_debug() {
+	set +x
+}
+
+trap "reload"        HUP
+trap "shutdown"      TERM INT
+trap "enable_debug"  USR1
+trap "disable_debug" USR2
+
+for var in PG_POSTGRES_PASSWORD PG_USERNAME PG_PASSWORD PG_DATABASE; do
+	if [ -z "${!var}" ]; then
+		echo "Required environment variable not set: $var" >&2
+		exit 1
+	fi
+done
+
+PGDATA="/var/lib/postgresql/${PG_MAJOR}/${PG_CLUSTER}"
+PGBIN="/usr/lib/postgresql/${PG_MAJOR}/bin"
+
+POSTGRESQL_CONF="${PGDATA}/postgresql.conf"
+PG_HBA_CONF="${PGDATA}/pg_hba.conf"
+
+: ${EXTERNAL_DSN:=host=${HOSTNAME} port=5432 dbname=${PG_DATABASE} user=postgres password=${PG_POSTGRES_PASSWORD}}
+
+pg_ctl() {
+	as_postgres "${PGBIN}/pg_ctl $(printf '%q ' "$@") -D '$PGDATA'"
+}
+
+as_postgres() {
+	su postgres -- -c "$@"
+}
+
+psql() {
+	as_postgres "${PGBIN}/psql '$PG_DATABASE' $(printf '%q ' "$@")"
+}
+
+init_pgdata() {
+	if ! [ -f "${PGDATA}/PG_VERSION" ]; then
+		echo "Initializing ${PGDATA}"
+		as_postgres "${PGBIN}/initdb -A reject --locale en_US.UTF-8 --encoding=UTF-8 -D $PGDATA"
+		
+		echo "ALTER ROLE postgres PASSWORD '$(printf %q "$PG_POSTGRES_PASSWORD")'" | \
+		  as_postgres "$PGBIN/postgres --single -D '$PGDATA'"
+
+		echo "CREATE USER \"$(printf %q "$PG_USERNAME")\" LOGIN PASSWORD '$(printf %q "$PG_PASSWORD")'" | \
+		  as_postgres "$PGBIN/postgres --single -D '$PGDATA'"
+
+		echo "CREATE DATABASE \"$(printf %q "$PG_DATABASE")\" WITH OWNER \"$(printf %q "$PG_USERNAME")\"" | \
+		  as_postgres "$PGBIN/postgres --single -D '$PGDATA'"
+		
+		# We don't want the default pg_hba.conf at all
+		>"${PGDATA}/pg_hba.conf"
+	fi
+}
+
+set_pg_conf() {
+	local key=${1}
+	local value=${2}
+
+	if [ -n "$key" -a "$value" ]; then
+		echo "Setting postgresql.conf: $key = '$value'"
+		as_postgres "sed -i \"s|^#\?\(${key} =\).*$|\1 '${value}'|g\" $POSTGRESQL_CONF"
+	fi
+}
+
+set_config() {
+	if [ -z "`grep \"${1}\" \"${2}\"`" ]; then
+		echo "${1}" >> $2
+	fi
+}
+
+
+setup_replication() {
+	psql -c "CREATE EXTENSION IF NOT EXISTS btree_gist;"
+	psql -c "CREATE EXTENSION IF NOT EXISTS bdr;"
+
+	if [ -n "$RENDEZVOUS_DSN" ]; then
+		psql -c "SELECT bdr.bdr_group_join(
+		           local_node_name   := '$HOSTNAME',
+		           node_external_dsn := '$EXTERNAL_DSN',
+		           join_using_dsn    := '$RENDEZVOUS_DSN',
+		           node_local_dsn    := 'host=/var/run/postgresql port=5432 user=postgres dbname=$PG_DATABASE'
+		         )"
+		psql -c "SELECT bdr.bdr_node_join_wait_for_ready()"
+	else
+		psql -c "SELECT bdr.bdr_group_create(
+		           local_node_name   := '$HOSTNAME',
+		           node_external_dsn := '$EXTERNAL_DSN',
+		           node_local_dsn    := 'host=/var/run/postgresql port=5432 user=postgres dbname=$PG_DATABASE'
+		         )"
+	fi
+		
+}
+
+set_pg_config() {
+	# These settings are mandatory for BDR to work
+	set_pg_conf max_replication_slots 10
+	set_pg_conf max_wal_senders 10
+	set_pg_conf shared_preload_libraries bdr
+	set_pg_conf track_commit_timestamp true
+	set_pg_conf wal_level logical
+
+	# This is just plain handy
+	set_pg_conf log_destination stderr
+	
+	# Grab all config entries from the environment
+	for SETTING in $(compgen -A variable PG_CONF_); do
+		echo "ENV: ${SETTING}=${!SETTING}"
+		set_pg_conf ${SETTING#PG_CONF_} "${!SETTING}"
+	done
+}
+
+setup_hba_config() {
+	enable_ssl
+
+	set_config "local   all         postgres              peer" "$PG_HBA_CONF"
+	set_config "local   replication postgres              peer" "$PG_HBA_CONF"
+	set_config "host    all         all      127.0.0.1/32 md5" "$PG_HBA_CONF"
+	set_config "host    all         all      ::1/128      md5" "$PG_HBA_CONF"
+	set_config "hostssl all         all      all          md5" "$PG_HBA_CONF"
+	set_config "hostssl replication all      all          md5" "$PG_HBA_CONF"
+}
+
+enable_ssl() {
+	set_pg_conf ssl on
+	
+	if ! [ -e "${PGDATA}/server.key" ]; then
+		openssl req -x509 -newkey rsa:2048 -nodes -keyout "${PGDATA}/server.key" -subj /CN="$HOSTNAME" -out "${PGDATA}/server.crt" -days 3650
+		chown postgres:postgres "${PGDATA}"/server.{key,crt}
+	fi
+}
+
+init_pgdata
+setup_hba_config
+set_pg_config
+
+pg_ctl -w start
+
+setup_replication
+
+while true; do
+	sleep 86400 &
+	wait $! || true
+
+	if ! pg_ctl status >/dev/null 2>&1; then
+		echo "PostgreSQL terminated."
+		exit 0
+	fi
+done
+
+echo "CAN'T HAPPEN: DROPPED OUT OF INFINITE LOOP" >&2
+exit 42
