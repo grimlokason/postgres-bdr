@@ -58,6 +58,7 @@ psql() {
 init_pgdata() {
 	if ! [ -f "${PGDATA}/PG_VERSION" ]; then
 		echo "Initializing ${PGDATA}"
+		chown postgres:postgres "$PGDATA"
 		as_postgres "${PGBIN}/initdb -A reject --locale en_US.UTF-8 --encoding=UTF-8 -D $PGDATA"
 		
 		echo "ALTER ROLE postgres PASSWORD '$(printf %q "$PG_POSTGRES_PASSWORD")'" | \
