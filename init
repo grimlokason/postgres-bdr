@@ -40,7 +40,8 @@ PGBIN="/usr/lib/postgresql/${PG_MAJOR}/bin"
 POSTGRESQL_CONF="${PGDATA}/postgresql.conf"
 PG_HBA_CONF="${PGDATA}/pg_hba.conf"
 
-: ${EXTERNAL_DSN:=host=${HOSTNAME} port=5432 dbname=${PG_DATABASE} user=postgres password=${PG_POSTGRES_PASSWORD}}
+: ${BDR_NODE_NAME:=$HOSTNAME}
+: ${EXTERNAL_DSN:=host=${BDR_NODE_NAME} port=5432 dbname=${PG_DATABASE} user=postgres password=${PG_POSTGRES_PASSWORD}}
 
 pg_ctl() {
 	as_postgres "${PGBIN}/pg_ctl $(printf '%q ' "$@") -D '$PGDATA'"
@@ -97,7 +98,7 @@ setup_replication() {
 
 	if [ -n "$RENDEZVOUS_DSN" ]; then
 		psql -c "SELECT bdr.bdr_group_join(
-		           local_node_name   := '$HOSTNAME',
+		           local_node_name   := '$BDR_NODE_NAME',
 		           node_external_dsn := '$EXTERNAL_DSN',
 		           join_using_dsn    := '$RENDEZVOUS_DSN',
 		           node_local_dsn    := 'host=/var/run/postgresql port=5432 user=postgres dbname=$PG_DATABASE'
@@ -105,7 +106,7 @@ setup_replication() {
 		psql -c "SELECT bdr.bdr_node_join_wait_for_ready()"
 	else
 		psql -c "SELECT bdr.bdr_group_create(
-		           local_node_name   := '$HOSTNAME',
+		           local_node_name   := '$BDR_NODE_NAME',
 		           node_external_dsn := '$EXTERNAL_DSN',
 		           node_local_dsn    := 'host=/var/run/postgresql port=5432 user=postgres dbname=$PG_DATABASE'
 		         )"
@@ -146,7 +147,7 @@ enable_ssl() {
 	set_pg_conf ssl on
 	
 	if ! [ -e "${PGDATA}/server.key" ]; then
-		openssl req -x509 -newkey rsa:2048 -nodes -keyout "${PGDATA}/server.key" -subj /CN="$HOSTNAME" -out "${PGDATA}/server.crt" -days 3650
+		openssl req -x509 -newkey rsa:2048 -nodes -keyout "${PGDATA}/server.key" -subj /CN="$BDR_NODE_NAME" -out "${PGDATA}/server.crt" -days 3650
 		chown postgres:postgres "${PGDATA}"/server.{key,crt}
 	fi
 }
