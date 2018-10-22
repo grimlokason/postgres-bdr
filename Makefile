@@ -11,7 +11,7 @@ push: build
 
 .PHONY: build
 build: git-check
-	docker build --pull --build-arg=http_proxy="${http_proxy}" --build-arg=GIT_REVISION=$(shell git rev-parse HEAD) -t ${IMAGE}:${TAG} .
+	docker build --pull --build-arg=http_proxy="${http_proxy}" -t ${IMAGE}:${TAG} .
 
 .PHONY: git-check
 git-check:
