@@ -27,7 +27,7 @@ trap "shutdown"      TERM INT
 trap "enable_debug"  USR1
 trap "disable_debug" USR2
 
-for var in PG_POSTGRES_PASSWORD PG_USERNAME PG_PASSWORD PG_DATABASE; do
+for var in PG_POSTGRES_PASSWORD PG_DATABASE; do
 	if [ -z "${!var}" ]; then
 		echo "Required environment variable not set: $var" >&2
 		exit 1
@@ -63,12 +63,6 @@ init_pgdata() {
 		echo "ALTER ROLE postgres PASSWORD '$(printf %q "$PG_POSTGRES_PASSWORD")'" | \
 		  as_postgres "$PGBIN/postgres --single -D '$PGDATA'"
 
-		echo "CREATE USER \"$(printf %q "$PG_USERNAME")\" LOGIN PASSWORD '$(printf %q "$PG_PASSWORD")'" | \
-		  as_postgres "$PGBIN/postgres --single -D '$PGDATA'"
-
-		echo "CREATE DATABASE \"$(printf %q "$PG_DATABASE")\" WITH OWNER \"$(printf %q "$PG_USERNAME")\"" | \
-		  as_postgres "$PGBIN/postgres --single -D '$PGDATA'"
-		
 		# We don't want the default pg_hba.conf at all
 		>"${PGDATA}/pg_hba.conf"
 
@@ -156,7 +150,7 @@ init_pgdata
 setup_hba_config
 set_pg_config
 
-unset -v PG_PASSWORD PG_POSTGRES_PASSWORD
+unset -v PG_POSTGRES_PASSWORD
 
 pg_ctl -w start
 

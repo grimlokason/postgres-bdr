@@ -21,8 +21,6 @@ creating a new BDR group:
 
     docker run --name bdr0 \
       -e PG_DATABASE=bdr_test \
-      -e PG_USERNAME=bdr \
-      -e PG_PASSWORD=s3kr1t \
       -e PG_POSTGRES_PASSWORD=s00p3rs3kr1t \
       discourse/postgres-bdr
 
@@ -33,8 +31,6 @@ you created:
 
     docker run --name bdr1 \
       -e PG_DATABASE=bdr_test \
-      -e PG_USERNAME=bdr \
-      -e PG_PASSWORD=s3kr1t \
       -e PG_POSTGRES_PASSWORD=s00p3rs3kr1t \
       -e RENDEZVOUS_DSN="host=192.0.2.42 port=5432 dbname=bdr_test user=postgres password=s00p3rs3kr1t" \
       discourse/postgres-bdr
@@ -63,18 +59,15 @@ The following environment variables must be set in order for setup of the
 PostgreSQL database to complete successfully.
 
 * **`PG_DATABASE`** (required) -- the name of the database to create as part
-  of the initial setup.
-
-* **`PG_USERNAME`** (required) -- the name of the user to create as part of
-  the initial setup, and who will own the created database.
-
-* **`PG_PASSWORD`** (required) -- the password of the user specified in
-  `PG_USERNAME`.
+  of the initial setup.  This is required because, unlike more traditional
+  forms of PostgreSQL replication, BDR runs on a per-database level, so if
+  you want a replicated database, you first need to have a database to
+  replicate.
 
 * **`PG_POSTGRES_PASSWORD`** (required) -- the password to set for the
   `postgres` (superuser) account.  This is the account tht is used for
-  replication between nodes (because BDR requires a superuser account for
-  reasons which don't bear thinking about).
+  replication between nodes (because BDR requires a superuser account).
+
 
 ## Optional environment variables
 
@@ -103,4 +96,6 @@ be formed correctly.
 
 * **`PG_SCHEMA_FILE`** -- if set, then during initial database creation, this
   file will be sent to the database server to execute to create an initial
-  schema in the database specified by `PG_DATABASE`.
+  schema in the database specified by `PG_DATABASE`.  If nothing else, you
+  probably want to use this to create additional (non-superuser) users with
+  which to access the database.
