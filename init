@@ -66,9 +66,6 @@ init_pgdata() {
 		echo "CREATE DATABASE \"$(printf %q "$PG_DATABASE")\"" | \
 		  as_postgres "$PGBIN/postgres --single -D '$PGDATA'"
 
-		# We don't want the default pg_hba.conf at all
-		>"${PGDATA}/pg_hba.conf"
-
 		DID_PG_INIT=y
 	fi
 }
@@ -80,12 +77,6 @@ set_pg_conf() {
 	if [ -n "$key" -a "$value" ]; then
 		echo "Setting postgresql.conf: $key = '$value'"
 		as_postgres "sed -i \"s|^#\?\(${key} =\).*$|\1 '${value}'|g\" $POSTGRESQL_CONF"
-	fi
-}
-
-set_config() {
-	if [ -z "`grep \"${1}\" \"${2}\"`" ]; then
-		echo "${1}" >> $2
 	fi
 }
 
@@ -132,12 +123,13 @@ set_pg_config() {
 setup_hba_config() {
 	enable_ssl
 
-	set_config "local   all         postgres              peer" "$PG_HBA_CONF"
-	set_config "local   replication postgres              peer" "$PG_HBA_CONF"
-	set_config "host    all         all      127.0.0.1/32 md5" "$PG_HBA_CONF"
-	set_config "host    all         all      ::1/128      md5" "$PG_HBA_CONF"
-	set_config "hostssl all         all      all          md5" "$PG_HBA_CONF"
-	set_config "hostssl replication all      all          md5" "$PG_HBA_CONF"
+	>"$PG_HBA_CONF"
+
+	echo "local   all         postgres              peer" >> "$PG_HBA_CONF"
+	echo "local   replication postgres              peer" >> "$PG_HBA_CONF"
+	echo "hostssl replication postgres all          md5"  >> "$PG_HBA_CONF"
+
+	echo "$HBA_CONFIG" >> "$PG_HBA_CONF"
 }
 
 enable_ssl() {
@@ -160,16 +152,16 @@ pg_ctl -w start
 setup_replication
 
 if [ "$DID_PG_INIT" = "y" ]; then
-	if [ -n "$SYSTEM_SCHEMA_FILE" ]; then
-		psql < "$SYSTEM_SCHEMA_FILE"
+	if [ -n "$SYSTEM_SQL_FILE" ]; then
+		psql < "$SYSTEM_SQL_FILE"
 	fi
 
-	if [ -z "$RENDEZVOUS_DSN" ] && [ -n "$DB_SCHEMA_FILE" ]; then
+	if [ -z "$RENDEZVOUS_DSN" ] && [ -n "$DB_SQL_FILE" ]; then
 		while [ "$(psql -At -c "select count(*) > 1 FROM bdr.bdr_nodes WHERE node_status='r'")" != "t" ]; do
 			echo "Waiting for BDR to be running before running schema" >&2
 			sleep 5
 		done
-		psql < "$PG_SCHEMA_FILE"
+		psql < "$PG_SQL_FILE"
 	fi
 fi
 

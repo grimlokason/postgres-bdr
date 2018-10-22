@@ -94,7 +94,7 @@ be formed correctly.
   Very handy.  You will almost certainly have to set `listen_addresses`, at
   the very least.
 
-* **`DB_SCHEMA_FILE`** -- if set, then during initial database creation, this
+* **`DB_SQL_FILE`** -- if set, then during initial database creation, this
   file will be sent to the database server to execute to create an initial
   schema in the database specified by `PG_DATABASE`.  Note that this schema file
   will only be executed *once* on the entire database cluster, and since roles
@@ -104,9 +104,12 @@ be formed correctly.
   replicated).  You should create users (and do other server-level operations) in
   the `SYSTEM_SCHEMA_FILE`, below.
 
-* **`SYSTEM_SCHEMA_FILE`** -- if set, this SQL file will be fed into each server
+* **`SYSTEM_SQL_FILE`** -- if set, this SQL file will be fed into each server
   in the cluster on first startup.  You do *not* want to create tables, etc using
   this file (unless you're an afficionado of `IF NOT EXISTS`), because it is run
   on every server in the cluster (and replication takes care of making sure all
   the servers have the schema details).  Instead, this file is for taking care of
   "system-level" setup, like creating users.
+
+* **`HBA_CONFIG`** -- additional host-based access rules to add to the server's
+  `pg_hba.conf` file on initial setup.
