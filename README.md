@@ -98,13 +98,15 @@ be formed correctly.
   file will be sent to the database server to execute to create an initial
   schema in the database specified by `PG_DATABASE`.  Note that this schema file
   will only be executed *once* on the entire database cluster, and since roles
-  and grants aren't stored in the database, but rather in the system catalog, you
-  don't want to create users and grant privileges in *this* schema file; instead,
-  see `SYSTEM_SCHEMA_FILE`, below.
+  aren't per-database, but rather apply to the database server as a whole, they
+  don't get replicated with everything else.  (Note that grants *do* get
+  replicated by BDR, if they apply to an object in the database being
+  replicated).  You should create users (and do other server-level operations) in
+  the `SYSTEM_SCHEMA_FILE`, below.
 
 * **`SYSTEM_SCHEMA_FILE`** -- if set, this SQL file will be fed into each server
   in the cluster on first startup.  You do *not* want to create tables, etc using
   this file (unless you're an afficionado of `IF NOT EXISTS`), because it is run
   on every server in the cluster (and replication takes care of making sure all
   the servers have the schema details).  Instead, this file is for taking care of
-  "system-level" setup, like creating users and granting privileges.
+  "system-level" setup, like creating users.
