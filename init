@@ -63,6 +63,9 @@ init_pgdata() {
 		echo "ALTER ROLE postgres PASSWORD '$(printf %q "$PG_POSTGRES_PASSWORD")'" | \
 		  as_postgres "$PGBIN/postgres --single -D '$PGDATA'"
 
+		echo "CREATE DATABASE \"$(printf %q "$PG_DATABASE")\"" | \
+		  as_postgres "$PGBIN/postgres --single -D '$PGDATA'"
+
 		# We don't want the default pg_hba.conf at all
 		>"${PGDATA}/pg_hba.conf"
 
@@ -156,12 +159,18 @@ pg_ctl -w start
 
 setup_replication
 
-if [ "$DID_PG_INIT" = "y" ] && [ -z "$RENDEZVOUS_DSN" ] && [ -n "PG_SCHEMA_FILE" ]; then
-	while [ "$(psql -At -c "select count(*) > 1 FROM bdr.bdr_nodes WHERE node_status='r'")" != "t" ]; do
-		echo "Waiting for BDR to be running before inserting schema" >&2
-		sleep 1
-	done
-	psql < "$PG_SCHEMA_FILE"
+if [ "$DID_PG_INIT" = "y" ]; then
+	if [ -z "$RENDEZVOUS_DSN" ] && [ -n "$DB_SCHEMA_FILE" ]; then
+		while [ "$(psql -At -c "select count(*) > 1 FROM bdr.bdr_nodes WHERE node_status='r'")" != "t" ]; do
+			echo "Waiting for BDR to be running before inserting schema" >&2
+			sleep 1
+		done
+		psql < "$PG_SCHEMA_FILE"
+	fi
+	
+	if [ -n "$SYSTEM_SCHEMA_FILE" ]; then
+		psql < "$SYSTEM_SCHEMA_FILE"
+	fi
 fi
 
 while true; do
