@@ -70,6 +70,8 @@ init_pgdata() {
 		
 		# We don't want the default pg_hba.conf at all
 		>"${PGDATA}/pg_hba.conf"
+
+		DID_PG_INIT=y
 	fi
 }
 
@@ -88,7 +90,6 @@ set_config() {
 		echo "${1}" >> $2
 	fi
 }
-
 
 setup_replication() {
 	psql -c "CREATE EXTENSION IF NOT EXISTS btree_gist;"
@@ -154,9 +155,19 @@ init_pgdata
 setup_hba_config
 set_pg_config
 
+unset -v PG_PASSWORD PG_POSTGRES_PASSWORD
+
 pg_ctl -w start
 
 setup_replication
+
+if [ "$DID_PG_INIT" = "y" ] && [ -z "$RENDEZVOUS_DSN" ] && [ -n "PG_SCHEMA_FILE" ]; then
+	while [ "$(psql -At -c "select count(*) > 1 FROM bdr.bdr_nodes WHERE node_status='r'")" != "t" ]; do
+		echo "Waiting for BDR to be running before inserting schema" >&2
+		sleep 1
+	done
+	psql < "$PG_SCHEMA_FILE"
+fi
 
 while true; do
 	sleep 86400 &

@@ -19,8 +19,12 @@ On one machine in the replication group, start the container *without* the
 `RENDEZVOUS_DSN` environment variable.  This will configure the database by
 creating a new BDR group:
 
-    docker run --name bdr0 -e PG_DATABASE=bdr_test -e PG_USERNAME=bdr \
-      -e PG_PASSWORD=s3kr1t discourse/postgres-bdr
+    docker run --name bdr0 \
+      -e PG_DATABASE=bdr_test \
+      -e PG_USERNAME=bdr \
+      -e PG_PASSWORD=s3kr1t \
+      -e PG_POSTGRES_PASSWORD=s00p3rs3kr1t \
+      discourse/postgres-bdr
 
 Once you've got one server up and running, you can tell the other database
 servers you want in the cluster to join this server, by specifying the
@@ -31,7 +35,8 @@ you created:
       -e PG_DATABASE=bdr_test \
       -e PG_USERNAME=bdr \
       -e PG_PASSWORD=s3kr1t \
-      -e RENDEZVOUS_DSN="host=192.0.2.42 port=5432 dbname=bdr_test user=bdr password=s3kr1t" \
+      -e PG_POSTGRES_PASSWORD=s00p3rs3kr1t \
+      -e RENDEZVOUS_DSN="host=192.0.2.42 port=5432 dbname=bdr_test user=postgres password=s00p3rs3kr1t" \
       discourse/postgres-bdr
 
 If all goes well, these additional database servers should connect to the
@@ -95,3 +100,7 @@ be formed correctly.
 * **`PG_CONF_<setting>`** -- set any variable in the `postgresql.conf` file. 
   Very handy.  You will almost certainly have to set `listen_addresses`, at
   the very least.
+
+* **`PG_SCHEMA_FILE`** -- if set, then during initial database creation, this
+  file will be sent to the database server to execute to create an initial
+  schema in the database specified by `PG_DATABASE`.

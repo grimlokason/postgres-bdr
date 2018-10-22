@@ -1,6 +1,8 @@
 FROM debian:stretch
 
-ENV PG_MAJOR=9.4 PG_CLUSTER=bdr
+ARG GIT_REVISION=invalid-build
+
+ENV PG_MAJOR=9.4 PG_CLUSTER=bdr BUILD_GIT_REVISION=$GIT_REVISION
 
 ADD https://www.postgresql.org/media/keys/ACCC4CF8.asc /tmp
 ADD https://apt.2ndquadrant.com/site/keys/9904CD4BD6BAF0C3.asc /tmp
@@ -17,7 +19,7 @@ RUN apt-get update \
 	&& echo "en_US.UTF-8 UTF-8" >/etc/locale.gen \
 	&& locale-gen \
 	&& sed -ri "s/#(create_main_cluster).*$/\1 = false/" /etc/postgresql-common/createcluster.conf \
-	&& apt-get install -y --no-install-recommends postgresql-bdr-${PG_MAJOR} postgresql-bdr-${PG_MAJOR}-bdr-plugin \
+	&& apt-get install -y --no-install-recommends postgresql-bdr-contrib-${PG_MAJOR} postgresql-bdr-${PG_MAJOR} postgresql-bdr-${PG_MAJOR}-bdr-plugin \
 	&& apt-get purge -y gnupg apt-transport-https ca-certificates \
 	&& apt-get -y --purge autoremove \
 	&& rm -rf /var/lib/apt/lists/*
