@@ -94,8 +94,17 @@ be formed correctly.
   Very handy.  You will almost certainly have to set `listen_addresses`, at
   the very least.
 
-* **`PG_SCHEMA_FILE`** -- if set, then during initial database creation, this
+* **`DB_SCHEMA_FILE`** -- if set, then during initial database creation, this
   file will be sent to the database server to execute to create an initial
-  schema in the database specified by `PG_DATABASE`.  If nothing else, you
-  probably want to use this to create additional (non-superuser) users with
-  which to access the database.
+  schema in the database specified by `PG_DATABASE`.  Note that this schema file
+  will only be executed *once* on the entire database cluster, and since roles
+  and grants aren't stored in the database, but rather in the system catalog, you
+  don't want to create users and grant privileges in *this* schema file; instead,
+  see `SYSTEM_SCHEMA_FILE`, below.
+
+* **`SYSTEM_SCHEMA_FILE`** -- if set, this SQL file will be fed into each server
+  in the cluster on first startup.  You do *not* want to create tables, etc using
+  this file (unless you're an afficionado of `IF NOT EXISTS`), because it is run
+  on every server in the cluster (and replication takes care of making sure all
+  the servers have the schema details).  Instead, this file is for taking care of
+  "system-level" setup, like creating users and granting privileges.
