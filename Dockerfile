@@ -1,8 +1,6 @@
 FROM debian:stretch
 
-ARG GIT_REVISION=invalid-build
-
-ENV PG_MAJOR=9.4 PG_CLUSTER=bdr BUILD_GIT_REVISION=$GIT_REVISION
+ENV PG_MAJOR=9.4 PG_CLUSTER=bdr
 
 ADD https://www.postgresql.org/media/keys/ACCC4CF8.asc /tmp
 ADD https://apt.2ndquadrant.com/site/keys/9904CD4BD6BAF0C3.asc /tmp
