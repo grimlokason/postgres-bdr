@@ -86,8 +86,8 @@ set_pg_conf() {
 }
 
 setup_replication() {
-	psql -c "CREATE EXTENSION IF NOT EXISTS btree_gist;"
-	psql -c "CREATE EXTENSION IF NOT EXISTS bdr;"
+	psql -c "CREATE EXTENSION btree_gist"
+	psql -c "CREATE EXTENSION bdr"
 
 	if [ -n "$RENDEZVOUS_DSN" ]; then
 		psql -c "SELECT bdr.bdr_group_join(
@@ -104,7 +104,6 @@ setup_replication() {
 		           node_local_dsn    := 'host=/var/run/postgresql port=5432 user=postgres dbname=$PG_DATABASE'
 		         )"
 	fi
-		
 }
 
 set_pg_config() {
@@ -155,7 +154,9 @@ unset -v PG_POSTGRES_PASSWORD
 
 pg_ctl -w start
 
-setup_replication
+if [ "$(psql -At -c "select count(*) > 0 FROM pg_catalog.pg_namespace WHERE nspname='bdr'")" != "t" ]; then
+	setup_replication
+fi
 
 if [ "$DID_PG_INIT" = "y" ]; then
 	if [ -n "$SYSTEM_SQL_FILE" ]; then
