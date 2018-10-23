@@ -132,6 +132,7 @@ setup_hba_config() {
 
 	echo "local   all         postgres              peer" >> "$PG_HBA_CONF"
 	echo "local   replication postgres              peer" >> "$PG_HBA_CONF"
+	echo "hostssl all         postgres all          md5"  >> "$PG_HBA_CONF"
 	echo "hostssl replication postgres all          md5"  >> "$PG_HBA_CONF"
 
 	echo "$HBA_CONFIG" >> "$PG_HBA_CONF"
