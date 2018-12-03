@@ -113,3 +113,11 @@ be formed correctly.
 
 * **`HBA_CONFIG`** -- additional host-based access rules to add to the server's
   `pg_hba.conf` file on initial setup.
+
+* **`WAIT_FOR_ROLE`** -- if you're not using the SQL files method of populating
+  the database schema and roles, you may need to specify a role name in this
+  environment variable that is created by your management system.  If a user
+  that BDR expects to exist doesn't during the "initialization" phase (that is,
+  the initial replication sync from another node), it completely loses its mind
+  and is dead forever.  Waiting for the specified role to exist tries to ensure
+  that your node-local setup is complete before starting to replicate.

@@ -162,6 +162,14 @@ if [ "$DID_PG_INIT" = "y" ] && [ -n "$SYSTEM_SQL_FILE" ]; then
 	psql_no_db < "$SYSTEM_SQL_FILE"
 fi
 
+if [ -n "$WAIT_FOR_ROLE" ]; then
+	while [ "$(psql -At -c "select count(*) > 0 FROM pg_authid WHERE rolname = '$WAIT_FOR_ROLE'")" != "t" ]; do
+		echo "Waiting for user $WAIT_FOR_ROLE to exist before replicating" >&2
+		sleep 1
+	done
+	sleep 2
+fi
+
 setup_replication
 
 if [ "$DID_PG_INIT" = "y" ] && [ -z "$RENDEZVOUS_DSN" ] && [ -n "$DB_SQL_FILE" ]; then
