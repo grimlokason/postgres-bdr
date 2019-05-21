@@ -91,17 +91,17 @@ setup_replication() {
 		psql -c "CREATE EXTENSION bdr"
 	fi
 
-	if [ "$(psql -At -c "select count(*) FROM bdr.bdr_nodes WHERE node_name='$BDR_NODE_NAME'")" = "0" ]; then
+	if [ "$(psql ${PG_DATABASE} -At -c "select count(*) FROM bdr.bdr_nodes WHERE node_name='$BDR_NODE_NAME'")" = "0" ]; then
 		if [ -n "$RENDEZVOUS_DSN" ]; then
-			psql -c "SELECT bdr.bdr_group_join(
+			psql ${PG_DATABASE} -c "SELECT bdr.bdr_group_join(
 			           local_node_name   := '$BDR_NODE_NAME',
 			           node_external_dsn := '$EXTERNAL_DSN',
 			           join_using_dsn    := '$RENDEZVOUS_DSN',
 			           node_local_dsn    := 'host=/var/run/postgresql port=5432 user=postgres dbname=$PG_DATABASE'
 			         )"
-			psql -c "SELECT bdr.bdr_node_join_wait_for_ready()"
+			psql ${PG_DATABASE} -c "SELECT bdr.bdr_node_join_wait_for_ready()"
 		else
-			psql -c "SELECT bdr.bdr_group_create(
+			psql ${PG_DATABASE} -c "SELECT bdr.bdr_group_create(
 			           local_node_name   := '$BDR_NODE_NAME',
 			           node_external_dsn := '$EXTERNAL_DSN',
 			           node_local_dsn    := 'host=/var/run/postgresql port=5432 user=postgres dbname=$PG_DATABASE'
@@ -173,7 +173,7 @@ fi
 setup_replication
 
 if [ "$DID_PG_INIT" = "y" ] && [ -z "$RENDEZVOUS_DSN" ] && [ -n "$DB_SQL_FILE" ]; then
-	while [ "$(psql -At -c "select count(*) > 1 FROM bdr.bdr_nodes WHERE node_status='r'")" != "t" ]; do
+	while [ "$(psql ${PG_DATABASE} -At -c "select count(*) > 1 FROM bdr.bdr_nodes WHERE node_status='r'")" != "t" ]; do
 		echo "Waiting for BDR to be running before running schema" >&2
 		sleep 5
 	done
