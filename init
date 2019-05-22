@@ -150,6 +150,13 @@ enable_ssl() {
 	fi
 }
 
+
+if ! [ -d "/var/run/postgresql" ]; then
+		echo "Creating /var/run/postgresql"
+		mkdir -p /var/run/postgresql
+		chown postgres:postgres /var/run/postgresql
+fi
+
 init_pgdata
 setup_hba_config
 set_pg_config
