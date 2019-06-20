@@ -60,9 +60,8 @@ psql_no_db() {
 }
 
 init_pgdata() {
-if as_postgres ! [ -d "${PGDATA}/PG_VERSION" ] ; then
+if as_postgres ! [ -f "${PGDATA}/PG_VERSION" ] ; then
 		echo "Initializing ${PGDATA}"
-		#as_postgres "mkdir -p /var/lib/postgresql/9.4"
 		as_postgres "${PGBIN}/initdb -A reject --locale en_US.UTF-8 --encoding=UTF-8 -D $PGDATA"
 		
 		echo "ALTER ROLE postgres PASSWORD '$(printf %q "$PG_POSTGRES_PASSWORD")'" | \
@@ -130,21 +129,19 @@ set_pg_config() {
 
 setup_hba_config() {
 	enable_ssl
-echo "test1"
+
 	as_postgres "echo 'local   all         postgres              peer' > '$PG_HBA_CONF'"
-echo "test3"
         as_postgres "echo 'local   replication postgres              peer' >> '$PG_HBA_CONF'"
         as_postgres "echo 'hostssl all         postgres all          md5'  >> '$PG_HBA_CONF'"
         as_postgres "echo 'hostssl replication postgres all          md5'  >> '$PG_HBA_CONF'"
 
 	as_postgres "echo '$HBA_CONFIG' >> '$PG_HBA_CONF'"
-echo "test2"
 }
 
 enable_ssl() {
 	set_pg_conf ssl on
 	
-	if ! [ -e "${PGDATA}/server.key" ]; then
+	if as_postgres ! [ -e "${PGDATA}/server.key" ]; then
         as_postgres "openssl req -x509 -newkey rsa:2048 -nodes -keyout '${PGDATA}/server.key' -subj /CN='$BDR_NODE_NAME' -out '${PGDATA}/server.crt' -days 3650"
 	fi
 }
