@@ -60,9 +60,9 @@ psql_no_db() {
 }
 
 init_pgdata() {
-	if ! [ -f "${PGDATA}/PG_VERSION" ]; then
+if as_postgres ! [ -d "${PGDATA}/PG_VERSION" ] ; then
 		echo "Initializing ${PGDATA}"
-		chown postgres:postgres /var/lib/postgresql
+		#as_postgres "mkdir -p /var/lib/postgresql/9.4"
 		as_postgres "${PGBIN}/initdb -A reject --locale en_US.UTF-8 --encoding=UTF-8 -D $PGDATA"
 		
 		echo "ALTER ROLE postgres PASSWORD '$(printf %q "$PG_POSTGRES_PASSWORD")'" | \
@@ -91,17 +91,17 @@ setup_replication() {
 		psql -c "CREATE EXTENSION bdr"
 	fi
 
-	if [ "$(psql ${PG_DATABASE} -At -c "select count(*) FROM bdr.bdr_nodes WHERE node_name='$BDR_NODE_NAME'")" = "0" ]; then
+	if [ "$(psql -At -c "select count(*) FROM bdr.bdr_nodes WHERE node_name='$BDR_NODE_NAME'")" = "0" ]; then
 		if [ -n "$RENDEZVOUS_DSN" ]; then
-			psql ${PG_DATABASE} -c "SELECT bdr.bdr_group_join(
+			psql -c "SELECT bdr.bdr_group_join(
 			           local_node_name   := '$BDR_NODE_NAME',
 			           node_external_dsn := '$EXTERNAL_DSN',
 			           join_using_dsn    := '$RENDEZVOUS_DSN',
 			           node_local_dsn    := 'host=/var/run/postgresql port=5432 user=postgres dbname=$PG_DATABASE'
 			         )"
-			psql ${PG_DATABASE} -c "SELECT bdr.bdr_node_join_wait_for_ready()"
+			psql -c "SELECT bdr.bdr_node_join_wait_for_ready()"
 		else
-			psql ${PG_DATABASE} -c "SELECT bdr.bdr_group_create(
+			psql -c "SELECT bdr.bdr_group_create(
 			           local_node_name   := '$BDR_NODE_NAME',
 			           node_external_dsn := '$EXTERNAL_DSN',
 			           node_local_dsn    := 'host=/var/run/postgresql port=5432 user=postgres dbname=$PG_DATABASE'
@@ -130,36 +130,35 @@ set_pg_config() {
 
 setup_hba_config() {
 	enable_ssl
+echo "test1"
+	as_postgres "echo 'local   all         postgres              peer' > '$PG_HBA_CONF'"
+echo "test3"
+        as_postgres "echo 'local   replication postgres              peer' >> '$PG_HBA_CONF'"
+        as_postgres "echo 'hostssl all         postgres all          md5'  >> '$PG_HBA_CONF'"
+        as_postgres "echo 'hostssl replication postgres all          md5'  >> '$PG_HBA_CONF'"
 
-	>"$PG_HBA_CONF"
-
-	echo "local   all         postgres              peer" >> "$PG_HBA_CONF"
-	echo "local   replication postgres              peer" >> "$PG_HBA_CONF"
-	echo "hostssl all         postgres all          md5"  >> "$PG_HBA_CONF"
-	echo "hostssl replication postgres all          md5"  >> "$PG_HBA_CONF"
-
-	echo "$HBA_CONFIG" >> "$PG_HBA_CONF"
+	as_postgres "echo '$HBA_CONFIG' >> '$PG_HBA_CONF'"
+echo "test2"
 }
 
 enable_ssl() {
 	set_pg_conf ssl on
 	
 	if ! [ -e "${PGDATA}/server.key" ]; then
-		openssl req -x509 -newkey rsa:2048 -nodes -keyout "${PGDATA}/server.key" -subj /CN="$BDR_NODE_NAME" -out "${PGDATA}/server.crt" -days 3650
-		chown postgres:postgres "${PGDATA}"/server.{key,crt}
+        as_postgres "openssl req -x509 -newkey rsa:2048 -nodes -keyout '${PGDATA}/server.key' -subj /CN='$BDR_NODE_NAME' -out '${PGDATA}/server.crt' -days 3650"
 	fi
 }
-
-
-if ! [ -d "/var/run/postgresql" ]; then
-		echo "Creating /var/run/postgresql"
-		mkdir -p /var/run/postgresql
-		chown postgres:postgres /var/run/postgresql
-fi
 
 init_pgdata
 setup_hba_config
 set_pg_config
+
+if ! [ -d "/var/run/postgresql" ]; then
+	echo "Creating /var/run/postgresql"
+	chmod 777  /var/run
+	as_postgres "mkdir -p /var/run/postgresql"
+fi
+
 
 unset -v PG_POSTGRES_PASSWORD
 
@@ -180,7 +179,7 @@ fi
 setup_replication
 
 if [ "$DID_PG_INIT" = "y" ] && [ -z "$RENDEZVOUS_DSN" ] && [ -n "$DB_SQL_FILE" ]; then
-	while [ "$(psql ${PG_DATABASE} -At -c "select count(*) > 1 FROM bdr.bdr_nodes WHERE node_status='r'")" != "t" ]; do
+	while [ "$(psql -At -c "select count(*) > 1 FROM bdr.bdr_nodes WHERE node_status='r'")" != "t" ]; do
 		echo "Waiting for BDR to be running before running schema" >&2
 		sleep 5
 	done
